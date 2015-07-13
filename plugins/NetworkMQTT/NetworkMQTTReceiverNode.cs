@@ -3,6 +3,7 @@ using System;
 using System.ComponentModel.Composition;
 using System.Collections;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 
 //using System.Net;
 using System.Threading.Tasks;
@@ -75,30 +76,23 @@ namespace VVVV.Nodes
 		public ILogger FLogger;
 
 		
-		
+
 		//Read the incomming Messages ////////////////////////////////
-		//public string message;
-		
-		public Queue MqttTopicQueue = new Queue();
-		public Queue MqttMessageQueue = new Queue();
+        public ConcurrentQueue<MqttMsgPublishEventArgs> MqttPacketQueue = new ConcurrentQueue<MqttMsgPublishEventArgs>();
+        System.Text.UTF8Encoding UTF8Enc = new System.Text.UTF8Encoding();
 		
 		#endregion fields & pins
 
 		//called when data for any output pin is requested
 		public void Evaluate(int SpreadMax)
 		{
-			// is defined SpreadMax Equals Mqtt Topic Queue
-			SpreadMax =  MqttTopicQueue.Count;
+			
 			
 			// Setup the MQTT if forced via init or when Topic or Quality of Service changed.
 			if (FInputInitMqtt[0] || FInputMqttTopic.IsChanged || FInputQoS.IsChanged )
 			{
 				Task.Run(() => init(FInputMqttBrokerAdress[0], FInputMqttPort[0]));
 			}
-			
-			// Slice Count equals MqttTopicQueue Count.
-			FOutputMqttTopic.SliceCount = MqttTopicQueue.Count;
-			FOutputMqttMessage.SliceCount = MqttTopicQueue.Count;
 			
 			try
 			{
@@ -108,13 +102,18 @@ namespace VVVV.Nodes
 			{
 				FOutputIsConnected[0] = false;
 			}
-			
-			for (int i = 0; i < SpreadMax; i++) {
-				FOutputMqttTopic[i] = (String)MqttTopicQueue.Dequeue();
-				FOutputMqttMessage[i] = (String)MqttMessageQueue.Dequeue();
+
+            FOutputMqttTopic.SliceCount = 0;
+            FOutputMqttMessage.SliceCount = 0;
+			for (int i = 0; i < MqttPacketQueue.Count; i++) 
+            {
+                MqttMsgPublishEventArgs packet;
+                if (MqttPacketQueue.TryDequeue(out packet))
+                {
+                    FOutputMqttTopic.Add(packet.Topic);
+                    FOutputMqttMessage.Add(UTF8Enc.GetString(packet.Message));
+                }
 			}
-			FOutputConnectionStatus[0] = FOutputConnectionStatus[0];
-			FOutputIsConnected[0] = FOutputIsConnected[0];
 		}
 
 		//MQTT /////////////////////////////////////////////////////////
@@ -203,15 +202,7 @@ namespace VVVV.Nodes
 		
 		private void client_MqttMsgPublishReceived(object sender, MqttMsgPublishEventArgs e)
 		{
-			// Get the coressponding Topics for the Message
-			MqttTopicQueue.Enqueue(e.Topic);
-			
-			// Get the Message Content
-			System.Text.UTF8Encoding enc = new System.Text.UTF8Encoding();
-			string message = enc.GetString(e.Message);
-			// FLogger.Log(LogType.Debug, "message: " + message);
-			MqttMessageQueue.Enqueue(message);
-			// FLogger.Log(LogType.Debug, e.QosLevel.ToString());
+            MqttPacketQueue.Enqueue(e);
 		}
 		
 		// Handle subscription acknowledgements
