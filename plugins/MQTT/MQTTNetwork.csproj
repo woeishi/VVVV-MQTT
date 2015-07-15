@@ -71,7 +71,6 @@
   <ItemGroup>
     <Compile Include="MQTTClient.cs" />
     <Compile Include="MQTTNode.cs" />
-    <Compile Include="MQTTSendReceiveNodes.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
