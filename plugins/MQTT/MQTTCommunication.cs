@@ -78,12 +78,12 @@ namespace VVVV.Nodes.MQTT
         #region fields
         Queue<string> FMessageStatusQueue = new Queue<string>();
 
-        HashSet<ushort> FPublishStatus = new HashSet<ushort>();
+        HashSet<ushort> FPublishStatus = new HashSet<ushort>(); //keeps track received-confirmations of published packets
 
-        Queue<MqttMsgPublishEventArgs> FPacketQueue = new Queue<MqttMsgPublishEventArgs>();
-        HashSet<Tuple<string, QOS>> FSubscriptions = new HashSet<Tuple<string, QOS>>();
-        Dictionary<ushort, Tuple<string, QOS>> FSubscribeStatus = new Dictionary<ushort, Tuple<string, QOS>>();
-        Dictionary<ushort, Tuple<string, QOS>> FUnsubscribeStatus = new Dictionary<ushort, Tuple<string, QOS>>();
+        Queue<MqttMsgPublishEventArgs> FPacketQueue = new Queue<MqttMsgPublishEventArgs>();  //incoming packets
+        HashSet<Tuple<string, QOS>> FSubscriptions = new HashSet<Tuple<string, QOS>>(); //list of current subscriptions
+        Dictionary<ushort, Tuple<string, QOS>> FSubscribeStatus = new Dictionary<ushort, Tuple<string, QOS>>(); //matches subscribe commands to packet ids
+        Dictionary<ushort, Tuple<string, QOS>> FUnsubscribeStatus = new Dictionary<ushort, Tuple<string, QOS>>(); //matches unsubscribe commands to packet ids
         #endregion fields
 
         public override void Dispose()
@@ -120,6 +120,8 @@ namespace VVVV.Nodes.MQTT
                         FClient.Publish(FInTopic[i], new byte[] { }, (byte)0, true);
                     #endregion sending
 
+                    //subscription and unsubscription has to be handled outside this loop
+                    //unsubscription has to be triggered first (matters in the case of same topic with different qos)
                     #region receiving
                     if (FInReceive[i])
                     {
@@ -191,18 +193,33 @@ namespace VVVV.Nodes.MQTT
         }
 
         #region events
+        /// <summary>
+        /// confirmation of the broker that a packet was successfully transmitted
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         public override void FClient_MqttMsgPublished(object sender, MqttMsgPublishedEventArgs e)
         {
             FMessageStatusQueue.Enqueue(PrependTime("published message with packet ID " + e.MessageId));
             FPublishStatus.Remove(e.MessageId);
         }
 
+        /// <summary>
+        /// passes packets received by the mqtt-client
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e">packet data</param>
         public override void FClient_MqttMsgPublishReceived(object sender, MqttMsgPublishEventArgs e)
         {
             FPacketQueue.Enqueue(e);
             FMessageStatusQueue.Enqueue(PrependTime("received topic " + e.Topic));
         }
 
+        /// <summary>
+        /// broker acknowledges a subscription
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         public override void FClient_MqttMsgSubscribed(object sender, MqttMsgSubscribedEventArgs e)
         {
             var issued = FSubscribeStatus[e.MessageId];
@@ -210,6 +227,11 @@ namespace VVVV.Nodes.MQTT
             FSubscribeStatus.Remove(e.MessageId);
         }
 
+        /// <summary>
+        /// broker acknowledges an unsubscription
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         public override void FClient_MqttMsgUnsubscribed(object sender, MqttMsgUnsubscribedEventArgs e)
         {
             var issued = FUnsubscribeStatus[e.MessageId];
