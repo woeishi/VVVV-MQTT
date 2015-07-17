@@ -15,6 +15,10 @@ using uPLibrary.Networking.M2Mqtt.Messages;
 
 namespace VVVV.Nodes.MQTT
 {
+    /// <summary>
+    /// handling sending and receiving of mqtt-client
+    /// including vvvv plugininterfacing
+    /// </summary>
     #region PluginInfo
     [PluginInfo(Name = "MQTT", 
                 Category = "Network",
@@ -25,7 +29,7 @@ namespace VVVV.Nodes.MQTT
                 Bugs = "receiving delete retained message command",
                 AutoEvaluate = true)]
     #endregion PluginInfo
-    public class MQTTNode : MQTTClient
+    public class MQTTCommunication : MQTTConnection
     {
         #region pins
         [Input("Topic", DefaultString = "vvvv/topic")]
@@ -82,7 +86,7 @@ namespace VVVV.Nodes.MQTT
         Dictionary<ushort, Tuple<string, QOS>> FUnsubscribeStatus = new Dictionary<ushort, Tuple<string, QOS>>();
         #endregion fields
 
-        internal override void ChildDispose()
+        public override void Dispose()
         {
             try
             {
@@ -93,10 +97,13 @@ namespace VVVV.Nodes.MQTT
             {
                 FLogger.Log(e);
             }
+            base.Dispose();
         }
 
-        internal override void ChildEvaluate(int spreadMax)
+        public override void Evaluate(int spreadMax)
         {
+            base.Evaluate(spreadMax);
+
             if ((FClient != null) && FClient.IsConnected)
             {
                 HashSet<Tuple<string, QOS>> currentSubscriptions = new HashSet<Tuple<string, QOS>>();

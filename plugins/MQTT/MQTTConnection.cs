@@ -13,8 +13,16 @@ using uPLibrary.Networking.M2Mqtt.Messages;
 
 namespace VVVV.Nodes.MQTT
 {
-    public class MQTTClient : IPluginEvaluate, IDisposable, IPartImportsSatisfiedNotification
+    /// <summary>
+    /// base class setting up mqtt-client connection to the broker
+    /// including vvvv plugininterfacing
+    /// </summary>
+    public class MQTTConnection : IPluginEvaluate, IDisposable, IPartImportsSatisfiedNotification
     {
+        /// <summary>
+        /// Quality of Service enum
+        /// directly maps to to byte flags of the mqtt specification
+        /// </summary>
         public enum QOS { QoS_0, QoS_1, QoS_2, }
 
         #region pins
@@ -81,9 +89,8 @@ namespace VVVV.Nodes.MQTT
         }
 
         #region dispose
-        public void Dispose()
+        public virtual void Dispose()
         {
-            ChildDispose();
             try
             {
                 TryDisconnect();
@@ -93,11 +100,9 @@ namespace VVVV.Nodes.MQTT
                 FLogger.Log(e);
             }
         }
-
-        internal virtual void ChildDispose() {}
         #endregion dispose
 
-        public void Evaluate(int spreadMax)
+        public virtual void Evaluate(int spreadMax)
         {
             if ((!FInEnabled[0]) && FInEnabled.IsChanged)
             {
@@ -120,13 +125,6 @@ namespace VVVV.Nodes.MQTT
                         TryConnect();
                     });
             }
-
-            ChildEvaluate(spreadMax);
-        }
-
-        internal virtual void ChildEvaluate(int spreadMax)
-        {
-            throw new NotImplementedException();
         }
 
         internal string PrependTime(string input)
