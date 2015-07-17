@@ -196,11 +196,21 @@ namespace VVVV.Nodes.MQTT
             FOutConnectionStatus[0] += "This might take a moment ...";
             try
             {
-                FClient.Connect(FInClientId[0], FInUsername[0], FInPassword[0], FInWillRetain[0], (byte)FInWillQOS[0], FInWillFlag[0], FInWillTopic[0], FInWillMessage[0], FInSession[0], (ushort)FInKeepAlive[0]);
+                //try using the simplest possible ctor for better compatibility
+                if ((FInUsername[0] == string.Empty) && (FInPassword[0] == string.Empty) && (!FInSession[0]) && (FInKeepAlive[0] == 60) && (!FInWillFlag[0]))
+                    FClient.Connect(FInClientId[0]);
+                else if ((!FInSession[0]) && (FInKeepAlive[0] == 60) && (!FInWillFlag[0]))
+                    FClient.Connect(FInClientId[0], FInUsername[0], FInPassword[0]);
+                else if (!FInWillFlag[0])
+                    FClient.Connect(FInClientId[0], FInUsername[0], FInPassword[0], FInSession[0], (ushort)FInKeepAlive[0]);
+                else
+                    FClient.Connect(FInClientId[0], FInUsername[0], FInPassword[0], FInWillRetain[0], (byte)FInWillQOS[0], FInWillFlag[0], FInWillTopic[0], FInWillMessage[0], FInSession[0], (ushort)FInKeepAlive[0]);
 
                 FOutIsConnected[0] = FClient.IsConnected;
                 string statusMsg = FClient.IsConnected ? "Connected to broker" : "Not connected to broker";
                 FOutConnectionStatus[0] = PrependTime(statusMsg+": " + FInBrokerAdress[0] + " at Port: " + FInPort[0] + ".\r\n");
+                if (!FClient.IsConnected)
+                    FOutConnectionStatus[0] += "try leaving more settings on default for compatibility with the broker";
 
                 FNewSession = true;
                 return true;
