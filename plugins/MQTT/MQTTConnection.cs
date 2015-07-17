@@ -132,6 +132,10 @@ namespace VVVV.Nodes.MQTT
             return DateTime.Now.ToString() + ": " + input;
         }
 
+        /// <summary>
+        /// Disconnects the client & removes the delegates from the events
+        /// </summary>
+        /// <returns>true if operation was successful</returns>
         private bool TryDisconnect()
         {
             if ((FClient != null) && FClient.IsConnected)
@@ -166,6 +170,10 @@ namespace VVVV.Nodes.MQTT
                 return false;
         }
 
+        /// <summary>
+        /// initializes the mqttclient & hooks up to available events
+        /// </summary>
+        /// <returns>true if operation was successful</returns>
         private bool TryInitialize()
         {
             try
@@ -190,13 +198,17 @@ namespace VVVV.Nodes.MQTT
             }
         }
 
+        /// <summary>
+        /// connects to the broker using simplest connection method overload for compatibility
+        /// </summary>
+        /// <returns>true if operation was successful</returns>
         private bool TryConnect()
         {
             FOutConnectionStatus[0] = PrependTime("Trying to setup client to connect to broker: " + FInBrokerAdress[0] + " at Port: " + FInPort[0] + ".\r\n");
             FOutConnectionStatus[0] += "This might take a moment ...";
             try
             {
-                //try using the simplest possible ctor for better compatibility
+                //try using the simplest possible overload for better compatibility
                 if ((FInUsername[0] == string.Empty) && (FInPassword[0] == string.Empty) && (!FInSession[0]) && (FInKeepAlive[0] == 60) && (!FInWillFlag[0]))
                     FClient.Connect(FInClientId[0]);
                 else if ((!FInSession[0]) && (FInKeepAlive[0] == 60) && (!FInWillFlag[0]))
@@ -225,7 +237,11 @@ namespace VVVV.Nodes.MQTT
         }
 
         #region event methods
-        //strangely never raised
+        /// <summary>
+        /// strangely never gets raised
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         void FClient_MqttMsgDisconnected(object sender, EventArgs e)
         {
             FOutIsConnected[0] = false;
