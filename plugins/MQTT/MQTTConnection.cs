@@ -153,7 +153,7 @@ namespace VVVV.Nodes.MQTT
                     {
                         FOutIsConnected[0] = FClient.IsConnected;
                         FOutConnectionStatus[0] = PrependTime("Disconnected from broker");
-                        FClient.ConnectionClosed -= FClient_MqttMsgDisconnected;
+                        FClient.MqttMsgDisconnected -= FClient_MqttMsgDisconnected;
                         return true;
                     }
                     else
@@ -180,7 +180,7 @@ namespace VVVV.Nodes.MQTT
             {
                 FClient = new MqttClient(FInBrokerAdress[0], FInPort[0], false, null);
 
-                FClient.ConnectionClosed += FClient_MqttMsgDisconnected;
+                FClient.MqttMsgDisconnected += FClient_MqttMsgDisconnected;
                 FClient.MqttMsgPublished += FClient_MqttMsgPublished;
                 FClient.MqttMsgPublishReceived += FClient_MqttMsgPublishReceived;
                 FClient.MqttMsgSubscribed += FClient_MqttMsgSubscribed;
@@ -246,7 +246,7 @@ namespace VVVV.Nodes.MQTT
         {
             FOutIsConnected[0] = false;
             FOutConnectionStatus[0] = PrependTime("Disconnected from broker");
-            FClient.ConnectionClosed -= FClient_MqttMsgDisconnected;
+            FClient.MqttMsgDisconnected -= FClient_MqttMsgDisconnected;
         }
 
         public virtual void FClient_MqttMsgPublished(object sender, MqttMsgPublishedEventArgs e)
