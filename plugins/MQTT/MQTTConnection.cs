@@ -209,7 +209,7 @@ namespace VVVV.Nodes.MQTT
             try
             {
                 //try using the simplest possible overload for better compatibility
-                if ((FInUsername[0] == string.Empty) && (FInPassword[0] == string.Empty) && (!FInSession[0]) && (FInKeepAlive[0] == 60) && (!FInWillFlag[0]))
+                if (string.IsNullOrEmpty(FInUsername[0]) && string.IsNullOrEmpty(FInPassword[0]) && (!FInSession[0]) && (FInKeepAlive[0] == 60) && (!FInWillFlag[0]))
                     FClient.Connect(FInClientId[0]);
                 else if ((!FInSession[0]) && (FInKeepAlive[0] == 60) && (!FInWillFlag[0]))
                     FClient.Connect(FInClientId[0], FInUsername[0], FInPassword[0]);
