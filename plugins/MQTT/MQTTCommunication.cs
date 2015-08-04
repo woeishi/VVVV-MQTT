@@ -113,8 +113,16 @@ namespace VVVV.Nodes.MQTT
                     #region sending
                     if (FInSend[i])
                     {
-                        var packetId = FClient.Publish(FInTopic[i], UTF8Enc.GetBytes(FInMessage[i]), (byte)FInQoS[i], FInRetained[i]);
-                        FPublishStatus.Add(packetId);
+                        if (FInTopic[i].Contains("/#") || FInTopic[i].Contains("/*"))
+                        {
+                            FMessageStatusQueue.Enqueue("Topic at slice " + i.ToString() + " contains illegal characters for publishing");
+                        }
+                        else
+                        {
+                            var packetId = FClient.Publish(FInTopic[i], UTF8Enc.GetBytes(FInMessage[i]), (byte)FInQoS[i], FInRetained[i]);
+                            FPublishStatus.Add(packetId);
+                        }
+
                     }
                     if (FInRemoveRetained[i])
                         FClient.Publish(FInTopic[i], new byte[] { }, (byte)0, true);
