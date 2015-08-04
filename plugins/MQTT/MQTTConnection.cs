@@ -14,17 +14,17 @@ using uPLibrary.Networking.M2Mqtt.Messages;
 namespace VVVV.Nodes.MQTT
 {
     /// <summary>
+    /// Quality of Service enum
+    /// directly maps to to byte flags of the mqtt specification
+    /// </summary>
+    public enum QOS { QoS_0, QoS_1, QoS_2, }
+
+    /// <summary>
     /// base class setting up mqtt-client connection to the broker
     /// including vvvv plugininterfacing
     /// </summary>
     public class MQTTConnection : IPluginEvaluate, IDisposable, IPartImportsSatisfiedNotification
     {
-        /// <summary>
-        /// Quality of Service enum
-        /// directly maps to to byte flags of the mqtt specification
-        /// </summary>
-        public enum QOS { QoS_0, QoS_1, QoS_2, }
-
         #region pins
         [Input("ClientID", DefaultString = "v4mqtt", IsSingle = true)]
         public IDiffSpread<string> FInClientId;
@@ -83,7 +83,7 @@ namespace VVVV.Nodes.MQTT
         internal bool FDisabled = false;
         #endregion fields
 
-        public void OnImportsSatisfied()
+        public virtual void OnImportsSatisfied()
         {
             FOutConnectionStatus[0] = PrependTime("Not connected");
         }
