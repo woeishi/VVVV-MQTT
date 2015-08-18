@@ -14,17 +14,17 @@ using uPLibrary.Networking.M2Mqtt.Messages;
 namespace VVVV.Nodes.MQTT
 {
     /// <summary>
+    /// Quality of Service enum
+    /// directly maps to to byte flags of the mqtt specification
+    /// </summary>
+    public enum QOS { QoS_0, QoS_1, QoS_2, }
+
+    /// <summary>
     /// base class setting up mqtt-client connection to the broker
     /// including vvvv plugininterfacing
     /// </summary>
     public class MQTTConnection : IPluginEvaluate, IDisposable, IPartImportsSatisfiedNotification
     {
-        /// <summary>
-        /// Quality of Service enum
-        /// directly maps to to byte flags of the mqtt specification
-        /// </summary>
-        public enum QOS { QoS_0, QoS_1, QoS_2, }
-
         #region pins
         [Input("ClientID", DefaultString = "v4mqtt", IsSingle = true)]
         public IDiffSpread<string> FInClientId;
@@ -83,7 +83,7 @@ namespace VVVV.Nodes.MQTT
         internal bool FDisabled = false;
         #endregion fields
 
-        public void OnImportsSatisfied()
+        public virtual void OnImportsSatisfied()
         {
             FOutConnectionStatus[0] = PrependTime("Not connected");
         }
@@ -209,7 +209,7 @@ namespace VVVV.Nodes.MQTT
             try
             {
                 //try using the simplest possible overload for better compatibility
-                if ((FInUsername[0] == string.Empty) && (FInPassword[0] == string.Empty) && (!FInSession[0]) && (FInKeepAlive[0] == 60) && (!FInWillFlag[0]))
+                if (string.IsNullOrEmpty(FInUsername[0]) && string.IsNullOrEmpty(FInPassword[0]) && (!FInSession[0]) && (FInKeepAlive[0] == 60) && (!FInWillFlag[0]))
                     FClient.Connect(FInClientId[0]);
                 else if ((!FInSession[0]) && (FInKeepAlive[0] == 60) && (!FInWillFlag[0]))
                     FClient.Connect(FInClientId[0], FInUsername[0], FInPassword[0]);

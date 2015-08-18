@@ -78,6 +78,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+  	<Compile Include="MQTTNodes.cs" />
     <Compile Include="MQTTConnection.cs" />
     <Compile Include="MQTTCommunication.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
