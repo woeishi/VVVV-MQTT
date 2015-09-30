@@ -9,6 +9,7 @@ using VVVV.Core.Logging;
 using System.Linq;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.Threading;
 using uPLibrary.Networking.M2Mqtt;
 using uPLibrary.Networking.M2Mqtt.Messages;
 #endregion usings
@@ -247,6 +248,7 @@ namespace VVVV.Nodes.MQTT
         Dictionary<ushort, Tuple<string, QOS>> FUnsubscribeStatus = new Dictionary<ushort, Tuple<string, QOS>>(); //matches unsubscribe commands to packet ids
 
         bool FNewSession = true;
+        object FQueueLocker = new object();
         #endregion fields
 
         public void OnImportsSatisfied()
@@ -291,8 +293,18 @@ namespace VVVV.Nodes.MQTT
                     match = true;
             if (match)
             {
-                FPacketQueue.Enqueue(e);
-                FMessageStatusQueue.Enqueue("received topic " + e.Topic);
+                bool lockWasTaken = false;
+                try {
+                    Monitor.TryEnter(FQueueLocker,100, ref lockWasTaken);
+                    {
+                        FPacketQueue.Enqueue(e);
+                        FMessageStatusQueue.Enqueue("received topic " + e.Topic);
+                    }
+                }
+                finally {
+                    if (lockWasTaken)
+                        Monitor.Exit(FQueueLocker);
+                }
             }
         }
 
@@ -444,18 +456,31 @@ namespace VVVV.Nodes.MQTT
                 }
             }
 
-            FOutTopic.AssignFrom(FPacketQueue.Select(x => x.Topic).ToArray());
-            FOutMessage.AssignFrom(FPacketQueue.Select(x => UTF8Enc.GetString(x.Message)));
-            FOutQoS.AssignFrom(FPacketQueue.Select(x => (QOS)x.QosLevel));
-            FOutIsRetained.AssignFrom(FPacketQueue.Select(x => x.Retain));
-            FOutOnData[0] = FPacketQueue.Count > 0;
-            FPacketQueue.Clear();
-
-            if (FMessageStatusQueue.Count > 0)
+            bool lockWasTaken = false;
+            try
             {
-                FOutMessageStatus.AssignFrom(FMessageStatusQueue.ToArray());
-                FMessageStatusQueue.Clear();
+                Monitor.Enter(FQueueLocker, ref lockWasTaken);
+                {
+                    FOutTopic.AssignFrom(FPacketQueue.Select(x => x.Topic).ToArray());
+                    FOutMessage.AssignFrom(FPacketQueue.Select(x => UTF8Enc.GetString(x.Message)));
+                    FOutQoS.AssignFrom(FPacketQueue.Select(x => (QOS)x.QosLevel));
+                    FOutIsRetained.AssignFrom(FPacketQueue.Select(x => x.Retain));
+                    FOutOnData[0] = FPacketQueue.Count > 0;
+                    FPacketQueue.Clear();
+
+                    if (FMessageStatusQueue.Count > 0)
+                    {
+                        FOutMessageStatus.AssignFrom(FMessageStatusQueue.ToArray());
+                        FMessageStatusQueue.Clear();
+                    }
+                }
             }
+            finally
+            {
+                if (lockWasTaken)
+                    Monitor.Exit(FQueueLocker);
+            }
+
         }
     }
 }
