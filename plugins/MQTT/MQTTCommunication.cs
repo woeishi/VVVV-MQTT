@@ -42,16 +42,16 @@ namespace VVVV.Nodes.MQTT
         public IDiffSpread<QOS> FInQoS;
 
         [Input("Retained", IsBang = true)]
-        ISpread<bool> FInRetained;
+        public ISpread<bool> FInRetained;
 
         [Input("Do Send", IsBang = true)]
-        ISpread<bool> FInSend;
+        public ISpread<bool> FInSend;
 
         [Input("Remove Retained", IsBang = true)]
-        ISpread<bool> FInRemoveRetained;
+        public ISpread<bool> FInRemoveRetained;
 
         [Input("Receive")]
-        ISpread<bool> FInReceive;
+        public ISpread<bool> FInReceive;
 
         [Output("Topic")]
         public ISpread<string> FOutTopic;
@@ -63,10 +63,10 @@ namespace VVVV.Nodes.MQTT
         public ISpread<QOS> FOutQoS;
 
         [Output("Is Retained")]
-        ISpread<bool> FOutIsRetained;
+        public ISpread<bool> FOutIsRetained;
 
         [Output("On Data")]
-        ISpread<bool> FOutOnData;
+        public ISpread<bool> FOutOnData;
 
         [Output("Publish Queue Count", Visibility = PinVisibility.OnlyInspector)]
         public ISpread<int> FOutboundCount;
