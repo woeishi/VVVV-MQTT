@@ -9,6 +9,7 @@ using VVVV.Core.Logging;
 using System.Linq;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.Threading;
 using uPLibrary.Networking.M2Mqtt;
 using uPLibrary.Networking.M2Mqtt.Messages;
 #endregion usings
@@ -35,7 +36,7 @@ namespace VVVV.Nodes.MQTT
         public override void OnImportsSatisfied()
         {
             FOutClient[0] = null;
-            base.OnImportsSatisfied();  
+            base.OnImportsSatisfied();
         }
 
         public override void Evaluate(int spreadMax)
@@ -48,10 +49,10 @@ namespace VVVV.Nodes.MQTT
                 FOutClient[0] = null;
         }
 
-        public override void FClient_MqttMsgPublished(object sender, MqttMsgPublishedEventArgs e) {}
-        public override void FClient_MqttMsgPublishReceived(object sender, MqttMsgPublishEventArgs e) {}
-        public override void FClient_MqttMsgSubscribed(object sender, MqttMsgSubscribedEventArgs e) {}
-        public override void FClient_MqttMsgUnsubscribed(object sender, MqttMsgUnsubscribedEventArgs e) {}
+        public override void FClient_MqttMsgPublished(object sender, MqttMsgPublishedEventArgs e) { }
+        public override void FClient_MqttMsgPublishReceived(object sender, MqttMsgPublishEventArgs e) { }
+        public override void FClient_MqttMsgSubscribed(object sender, MqttMsgSubscribedEventArgs e) { }
+        public override void FClient_MqttMsgUnsubscribed(object sender, MqttMsgUnsubscribedEventArgs e) { }
     }
 
     #region PluginInfo
@@ -61,7 +62,7 @@ namespace VVVV.Nodes.MQTT
                 Help = "Client for communicating via the MQTT protocol",
                 Tags = "IoT, MQTT", Credits = "M2MQTT m2mqtt.wordpress.com, Jochen Leinberger, explorative-environments.net",
                 Author = "woei",
-                Bugs = "receiving delete retained message command",
+                Bugs = "empty topics crashes the M2MQTT libary, receiving delete retained message command",
                 AutoEvaluate = true)]
     #endregion PluginInfo
     public class MQTTSendNode : IPluginEvaluate, IPartImportsSatisfiedNotification
@@ -146,7 +147,7 @@ namespace VVVV.Nodes.MQTT
         }
         #endregion events
 
-        public void Evaluate (int spreadmax)
+        public void Evaluate(int spreadmax)
         {
             if (FInClient.IsConnected)
             {
@@ -161,7 +162,7 @@ namespace VVVV.Nodes.MQTT
                     FClient = null;
                 }
 
-                    if (FClient != null && FClient.IsConnected)
+                if (FClient != null && FClient.IsConnected)
                 {
                     for (int i = 0; i < spreadmax; i++)
                     {
@@ -184,7 +185,7 @@ namespace VVVV.Nodes.MQTT
                 }
             }
 
-            if(FMessageStatusQueue.Count > 0)
+            if (FMessageStatusQueue.Count > 0)
             {
                 FOutMessageStatus.AssignFrom(FMessageStatusQueue.ToArray());
                 FMessageStatusQueue.Clear();
@@ -245,6 +246,9 @@ namespace VVVV.Nodes.MQTT
         HashSet<Tuple<string, QOS>> FSubscriptions = new HashSet<Tuple<string, QOS>>(); //list of current subscriptions
         Dictionary<ushort, Tuple<string, QOS>> FSubscribeStatus = new Dictionary<ushort, Tuple<string, QOS>>(); //matches subscribe commands to packet ids
         Dictionary<ushort, Tuple<string, QOS>> FUnsubscribeStatus = new Dictionary<ushort, Tuple<string, QOS>>(); //matches unsubscribe commands to packet ids
+
+        bool FNewSession = true;
+        object FQueueLocker = new object();
         #endregion fields
 
         public void OnImportsSatisfied()
@@ -289,8 +293,18 @@ namespace VVVV.Nodes.MQTT
                     match = true;
             if (match)
             {
-                FPacketQueue.Enqueue(e);
-                FMessageStatusQueue.Enqueue("received topic " + e.Topic);
+                bool lockWasTaken = false;
+                try {
+                    Monitor.TryEnter(FQueueLocker,100, ref lockWasTaken);
+                    {
+                        FPacketQueue.Enqueue(e);
+                        FMessageStatusQueue.Enqueue("received topic " + e.Topic);
+                    }
+                }
+                finally {
+                    if (lockWasTaken)
+                        Monitor.Exit(FQueueLocker);
+                }
             }
         }
 
@@ -336,9 +350,9 @@ namespace VVVV.Nodes.MQTT
             var _src = request.Split(new char[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
             var _dst = response.Split(new char[] { '/' }, StringSplitOptions.RemoveEmptyEntries);
             bool match = false;
-            for (int i=0; i<Math.Max(_src.Length,_dst.Length); i++)
+            for (int i = 0; i < Math.Max(_src.Length, _dst.Length); i++)
             {
-                if ((i>=_src.Length) || (i >= _dst.Length))
+                if ((i >= _src.Length) || (i >= _dst.Length))
                 {
                     match = false;
                     break;
@@ -371,6 +385,7 @@ namespace VVVV.Nodes.MQTT
                     FClient.MqttMsgPublishReceived += FClient_MqttMsgPublishReceived;
                     FClient.MqttMsgSubscribed += FClient_MqttMsgSubscribed;
                     FClient.MqttMsgUnsubscribed += FClient_MqttMsgUnsubscribed;
+                    FNewSession = true;
                 }
                 if (FClient != null && FInClient[0] == null)
                 {
@@ -382,67 +397,90 @@ namespace VVVV.Nodes.MQTT
 
                 if (FClient != null && FClient.IsConnected)
                 {
-                    HashSet<Tuple<string, QOS>> currentSubscriptions = new HashSet<Tuple<string, QOS>>();
-                    List<Tuple<string, QOS>> newSubscriptions = new List<Tuple<string, QOS>>();
-                    for (int i = 0; i < spreadmax; i++)
-                    {
-                        var tup = new Tuple<string, QOS>(FInTopic[i], FInQoS[i]);
-                        currentSubscriptions.Add(tup);
 
-                        if (!FSubscriptions.Remove(tup))
-                            newSubscriptions.Add(tup);
-                    }
-
-                    #region unsubscribe
-                    try
+                    if (FInTopic.IsChanged || FNewSession)
                     {
-                        if (FSubscriptions.Count > 0)
+                        HashSet<Tuple<string, QOS>> currentSubscriptions = new HashSet<Tuple<string, QOS>>();
+                        List<Tuple<string, QOS>> newSubscriptions = new List<Tuple<string, QOS>>();
+
+                        for (int i = 0; i < spreadmax; i++)
                         {
-                            foreach (var tuple in FSubscriptions)
-                            {
-                                var unsubscribeId = FClient.Unsubscribe(new string[] { tuple.Item1 });
-                                FUnsubscribeStatus.Add(unsubscribeId, tuple);
-                            }
-                        }
-                        FSubscriptions = new HashSet<Tuple<string, QOS>>(currentSubscriptions);
-                    }
-                    catch (Exception e)
-                    {
-                        FLogger.Log(e);
-                        foreach (var s in currentSubscriptions)
-                            FSubscriptions.Add(s);
-                    }
-                    #endregion unsubscribe
+                            var tup = new Tuple<string, QOS>(FInTopic[i], FInQoS[i]);
+                            currentSubscriptions.Add(tup);
 
-                    #region subscribe
-                    foreach (var subs in newSubscriptions)
-                    {
+                            if (!FSubscriptions.Remove(tup))
+                                newSubscriptions.Add(tup);
+                        }
+
+                        #region unsubscribe
                         try
                         {
-                            var subscribeId = FClient.Subscribe(new string[] { subs.Item1 }, new byte[] { (byte)subs.Item2 });
-                            FSubscribeStatus.Add(subscribeId, subs);
+                            if (FSubscriptions.Count > 0)
+                            {
+                                foreach (var tuple in FSubscriptions)
+                                {
+                                    var unsubscribeId = FClient.Unsubscribe(new string[] { tuple.Item1 });
+                                    FUnsubscribeStatus.Add(unsubscribeId, tuple);
+                                }
+                            }
+                            FSubscriptions = new HashSet<Tuple<string, QOS>>(currentSubscriptions);
                         }
-                        catch
+                        catch (Exception e)
                         {
-                            FLogger.Log(LogType.Warning, string.Format("couldn't subscribe to {0} with qos {1}", subs.Item1, subs.Item2));
+                            FLogger.Log(e);
+                            foreach (var s in currentSubscriptions)
+                                FSubscriptions.Add(s);
                         }
+                        #endregion unsubscribe
+
+                        #region subscribe
+                        if (FNewSession)
+                        {
+                            newSubscriptions.AddRange(FSubscriptions);
+                            FNewSession = false;
+                        }
+                        foreach (var subs in newSubscriptions)
+                        {
+                            try
+                            {
+                                var subscribeId = FClient.Subscribe(new string[] { subs.Item1 }, new byte[] { (byte)subs.Item2 });
+                                FSubscribeStatus.Add(subscribeId, subs);
+                            }
+                            catch
+                            {
+                                FLogger.Log(LogType.Warning, string.Format("couldn't subscribe to {0} with qos {1}", subs.Item1, subs.Item2));
+                            }
+                        }
+                        #endregion subscribe
                     }
-                    #endregion subscribe
                 }
             }
 
-            FOutTopic.AssignFrom(FPacketQueue.Select(x => x.Topic).ToArray());
-            FOutMessage.AssignFrom(FPacketQueue.Select(x => UTF8Enc.GetString(x.Message)));
-            FOutQoS.AssignFrom(FPacketQueue.Select(x => (QOS)x.QosLevel));
-            FOutIsRetained.AssignFrom(FPacketQueue.Select(x => x.Retain));
-            FOutOnData[0] = FPacketQueue.Count > 0;
-            FPacketQueue.Clear();
-
-            if (FMessageStatusQueue.Count > 0)
+            bool lockWasTaken = false;
+            try
             {
-                FOutMessageStatus.AssignFrom(FMessageStatusQueue.ToArray());
-                FMessageStatusQueue.Clear();
+                Monitor.Enter(FQueueLocker, ref lockWasTaken);
+                {
+                    FOutTopic.AssignFrom(FPacketQueue.Select(x => x.Topic).ToArray());
+                    FOutMessage.AssignFrom(FPacketQueue.Select(x => UTF8Enc.GetString(x.Message)));
+                    FOutQoS.AssignFrom(FPacketQueue.Select(x => (QOS)x.QosLevel));
+                    FOutIsRetained.AssignFrom(FPacketQueue.Select(x => x.Retain));
+                    FOutOnData[0] = FPacketQueue.Count > 0;
+                    FPacketQueue.Clear();
+
+                    if (FMessageStatusQueue.Count > 0)
+                    {
+                        FOutMessageStatus.AssignFrom(FMessageStatusQueue.ToArray());
+                        FMessageStatusQueue.Clear();
+                    }
+                }
             }
+            finally
+            {
+                if (lockWasTaken)
+                    Monitor.Exit(FQueueLocker);
+            }
+
         }
     }
 }
