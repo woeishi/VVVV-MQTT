@@ -406,11 +406,14 @@ namespace VVVV.Nodes.MQTT
 
                         for (int i = 0; i < spreadmax; i++)
                         {
-                            var tup = new Tuple<string, QOS>(FInTopic[i], FInQoS[i]);
-                            currentSubscriptions.Add(tup);
+                            if (FInTopic[i].Length > 0)
+                            {
+                                var tup = new Tuple<string, QOS>(FInTopic[i], FInQoS[i]);
+                                currentSubscriptions.Add(tup);
 
-                            if (!FSubscriptions.Remove(tup))
-                                newSubscriptions.Add(tup);
+                                if (!FSubscriptions.Remove(tup))
+                                    newSubscriptions.Add(tup);
+                            }
                         }
 
                         #region unsubscribe
