@@ -406,7 +406,7 @@ namespace VVVV.Nodes.MQTT
 
                         for (int i = 0; i < spreadmax; i++)
                         {
-                            if (FInTopic[i].Length > 0)
+                            if (!string.IsNullOrWhiteSpace(FInTopic[i]))
                             {
                                 var tup = new Tuple<string, QOS>(FInTopic[i], FInQoS[i]);
                                 currentSubscriptions.Add(tup);
