@@ -168,6 +168,9 @@ namespace VVVV.Nodes.MQTT
                     {
                         if (FInSend[i])
                         {
+                            if (FInRemoveRetained[i])
+                                FClient.Publish(FInTopic[i], new byte[] { }, (byte)0, true);
+
                             if (FInTopic[i].Contains("/#") || FInTopic[i].Contains("/*"))
                             {
                                 FMessageStatusQueue.Enqueue("Topic at slice " + i.ToString() + " contains illegal characters for publishing");
@@ -177,10 +180,8 @@ namespace VVVV.Nodes.MQTT
                                 var packetId = FClient.Publish(FInTopic[i], UTF8Enc.GetBytes(FInMessage[i]), (byte)FInQoS[i], FInRetained[i]);
                                 FPublishStatus.Add(packetId);
                             }
-
                         }
-                        if (FInRemoveRetained[i])
-                            FClient.Publish(FInTopic[i], new byte[] { }, (byte)0, true);
+                        
                     }
                 }
             }
